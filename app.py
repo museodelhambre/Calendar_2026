@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import textwrap
+from datetime import datetime
 
 # 1. Configuración de la página
 st.set_page_config(
@@ -10,76 +11,106 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. Estilo CSS (Paleta Cálida y Diseño de Cuadrícula)
+# --- FUNCIONES DE FORMATEO ---
+
+def formatear_fecha_larga(fecha_str):
+    """Convierte fechas a formato '4 de abril de 2026'"""
+    try:
+        fecha_obj = pd.to_datetime(fecha_str, dayfirst=True)
+        meses = {
+            1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+            5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+            9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre"
+        }
+        return f"{fecha_obj.day} de {meses[fecha_obj.month]} de {fecha_obj.year}"
+    except:
+        return fecha_str
+
+def formatear_hora_corta(hora_str):
+    """Asegura formato HH:MM (ej: 10:00)"""
+    try:
+        # Intentamos convertir a objeto tiempo para extraer solo HH:MM
+        if ":" in str(hora_str):
+            partes = str(hora_str).split(":")
+            hh = partes[0].zfill(2) # Agrega cero a la izquierda si falta
+            mm = partes[1].zfill(2)
+            return f"{hh}:{mm}"[:5] # Corta a 5 caracteres exactos
+        return hora_str
+    except:
+        return hora_str
+
+# 2. Estilo CSS (Estética Cálida, Centrada y Marrón)
 st.markdown("""
 <style>
-    /* Fondo cálido tipo papel/crema */
-    .main { background-color: #fdfcf0; }
+    .main { background-color: #fdfcf0; } /* Fondo Crema */
     
     .event-card {
         background-color: #ffffff;
-        padding: 25px;
-        border-radius: 24px;
+        padding: 30px;
+        border-radius: 28px;
         border: 1px solid #eaddca;
-        box-shadow: 0 6px 15px rgba(139, 69, 19, 0.05);
+        box-shadow: 0 4px 12px rgba(75, 46, 42, 0.05);
         margin-bottom: 25px;
         display: flex;
         flex-direction: column;
-        min-height: 420px;
+        align-items: center; /* Centrado horizontal */
+        text-align: center;   /* Texto centrado */
+        min-height: 460px;
         transition: transform 0.2s ease;
     }
     .event-card:hover {
         transform: translateY(-5px);
-        box-shadow: 0 10px 20px rgba(139, 69, 19, 0.1);
+        box-shadow: 0 10px 20px rgba(75, 46, 42, 0.1);
     }
     
-    /* Fecha y Hora Destacadas */
-    .date-time-container {
-        background-color: #fef5e7;
-        padding: 15px;
-        border-radius: 18px;
-        border-left: 5px solid #d35400;
-        margin-bottom: 15px;
+    /* Cuadro de Fecha y Hora (Marrón Claro, 60% ancho) */
+    .date-time-box {
+        background-color: #f5ebd7;
+        padding: 18px;
+        border-radius: 22px;
+        width: 65%;
+        margin: 0 auto 20px auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
     }
+    
     .date-text {
-        color: #d35400;
+        color: #4b2e2a; /* Marrón oscuro */
         font-weight: 800;
-        font-size: 20px; /* Tamaño grande */
+        font-size: 19px;
         display: block;
-        line-height: 1.1;
+        line-height: 1.2;
     }
+    
     .time-text {
-        color: #a04000;
-        font-weight: 600;
+        color: #6d4c41;
+        font-weight: 700;
         font-size: 16px;
+        margin-top: 6px;
         display: block;
-        margin-top: 5px;
     }
     
     .event-title {
-        color: #2c3e50;
-        font-size: 22px;
+        color: #4b2e2a;
+        font-size: 24px;
         font-weight: 700;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
         line-height: 1.2;
     }
     
     .location {
-        color: #7f8c8d;
-        font-size: 15px;
+        color: #8d6e63;
+        font-size: 16px;
         font-weight: 500;
         margin-bottom: 15px;
         font-style: italic;
     }
     
     .description {
-        color: #5d6d7e;
+        color: #5d4037;
         font-size: 15px;
-        line-height: 1.6;
-        overflow: hidden;
-        display: -webkit-box;
-        -webkit-line-clamp: 5;
-        -webkit-box-orient: vertical;
+        line-height: 1.7;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -102,33 +133,34 @@ def load_data():
 df = load_data()
 
 if df is not None:
-    # Encabezado
+    # Logo
     if os.path.exists("logo.png"):
-        st.image("logo.png", width=150)
+        st.image("logo.png", width=140)
     
     st.title("📅 Agenda de actividades - Museo del Hambre 2026")
     
-    # Buscador (Filtro por lugar eliminado)
-    search = st.text_input("🔍 Buscar actividad por nombre...", placeholder="Escribe aquí el evento que buscas...")
+    # Buscador único
+    search = st.text_input("🔍 Buscar actividad...", placeholder="Escribe aquí el nombre del evento...")
 
-    # Filtrado
     f_df = df.copy()
     if search:
         f_df = f_df[f_df['Nombre'].str.contains(search, case=False)]
 
     if f_df.empty:
-        st.info("No hay actividades que coincidan con la búsqueda.")
+        st.info("No hay actividades programadas que coincidan.")
     else:
-        st.write(f"Mostrando **{len(f_df)}** actividades")
-        
-        # --- DISEÑO DE 3 COLUMNAS ---
+        # Grid de 3 eventos por línea
         cols = st.columns(3)
         
         for i, row in f_df.reset_index().iterrows():
+            # Procesamos formatos de visualización
+            fecha_larga = formatear_fecha_larga(row['Fecha'])
+            hora_limpia = formatear_hora_corta(row['Hora'])
+            
             with cols[i % 3]:
-                # Construcción del HTML (sin espacios iniciales para evitar errores)
-                card_html = f"""<div class="event-card"><div class="date-time-container"><span class="date-text">🗓️ {row['Fecha']}</span><span class="time-text">🕒 {row['Hora']} hs</span></div><div class="event-title">{row['Nombre']}</div><div class="location">📍 {row['Lugar']}</div><div class="description">{row['Desc']}</div></div>"""
+                # HTML compacto para las tarjetas
+                card_html = f"""<div class="event-card"><div class="date-time-box"><span class="date-text">{fecha_larga}</span><span class="time-text">🕒 {hora_limpia} hs</span></div><div class="event-title">{row['Nombre']}</div><div class="location">📍 {row['Lugar']}</div><div class="description">{row['Desc']}</div></div>"""
                 st.markdown(card_html, unsafe_allow_html=True)
 
 st.markdown("---")
-st.caption("Agenda Cultural - Museo del Hambre 2026")
+st.caption("Agenda de Actividades - Museo del Hambre 2026")
