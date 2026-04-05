@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
-# Intentar importar auto-refresh para mantener la sesión activa en el navegador
+# Intentar importar auto-refresh para mantener la sesión activa
 try:
     from streamlit_autorefresh import st_autorefresh
 except ImportError:
@@ -16,8 +16,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- KEEP ALIVE Y AUTO-REFRESH ---
-# Refresca la app cada 15 minutos para evitar que la pestaña muera
+# --- KEEP ALIVE (Auto-refresco del navegador) ---
 if st_autorefresh:
     st_autorefresh(interval=15 * 60 * 1000, key="keepalive")
 
@@ -45,7 +44,7 @@ def formatear_hora_corta(hora_str):
     except:
         return hora_str
 
-# 2. Estilo CSS (Diseño Cálido y Tarjetas)
+# 2. Estilo CSS (Optimizado)
 st.markdown("""
 <style>
     .main { background-color: #fdfcf0; }
@@ -77,26 +76,40 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. Carga de datos
+# 3. Carga y Filtrado de datos
 @st.cache_data(ttl=300)
 def load_data():
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQVnI-dbe62M3I0uv9mzw43pEZuwHAJMb-SpfFyXRu66uHZnNrRyy_xW-lRX4sooN28T357B5JLONxa/pub?gid=1828847868&single=true&output=csv"
     try:
         df = pd.read_csv(url)
         df.columns = df.columns.str.strip()
+        
+        # Mapeo de columnas
         mapping = {'Nombre del evento': 'Nombre', 'Descripción': 'Desc'}
         df = df.rename(columns={k: v for k, v in mapping.items() if k in df.columns})
         
-        # Asegurar orden cronológico convirtiendo la fecha temporalmente
-        if 'Fecha' in df.columns:
-            df['fecha_dt'] = pd.to_datetime(df['Fecha'], dayfirst=True, errors='coerce')
-            df = df.sort_values(by='fecha_dt').drop(columns=['fecha_dt'])
-            
+        # 1. Crear columna de fecha/hora real para cálculos
+        # Combinamos Fecha y Hora para tener un objeto datetime completo
+        df['dt_evento'] = pd.to_datetime(df['Fecha'] + ' ' + df['Hora'], dayfirst=True, errors='coerce')
+        
+        # 2. FILTRAR PASADOS (Ocultar si pasaron más de 3 horas del inicio)
+        ahora = datetime.now()
+        limite_pasado = ahora - timedelta(hours=3)
+        
+        # Solo nos quedamos con eventos que NO han pasado el límite
+        df = df[df['dt_evento'] >= limite_pasado]
+        
+        # 3. Ordenar cronológicamente
+        df = df.sort_values(by='dt_evento')
+
+        # Limpieza de strings
         for c in ['Fecha', 'Hora', 'Nombre', 'Desc', 'Lugar']:
             if c not in df.columns: df[c] = ""
             df[c] = df[c].fillna("").astype(str).str.strip()
+            
         return df
-    except:
+    except Exception as e:
+        st.error(f"Error al cargar datos: {e}")
         return None
 
 df = load_data()
@@ -106,6 +119,8 @@ if df is not None:
         st.image("logo.png", width=120)
     
     st.title("📅 Agenda Museo del Hambre 2026")
+    st.write(f"Mostrando actividades desde hoy. (Actualizado: {datetime.now().strftime('%H:%M')}hs)")
+    
     search = st.text_input("🔍 Buscar actividad...", placeholder="Escriba aquí...")
 
     f_df = df.copy()
@@ -113,14 +128,12 @@ if df is not None:
         f_df = f_df[f_df['Nombre'].str.contains(search, case=False)]
 
     if f_df.empty:
-        st.info("No hay actividades que coincidan.")
+        st.info("No hay actividades próximas programadas.")
     else:
-        # --- NUEVA LÓGICA DE FILAS PARA ORDEN CRONOLÓGICO ---
-        # Dividimos los datos en grupos de 3 (para PC)
+        # --- LÓGICA DE FILAS (Mantiene orden en PC y Celular) ---
         num_columnas = 3
         for i in range(0, len(f_df), num_columnas):
             cols = st.columns(num_columnas)
-            # Tomamos un bloque de hasta 3 eventos
             fila_eventos = f_df.iloc[i : i + num_columnas]
             
             for index, (idx_original, row) in enumerate(fila_eventos.iterrows()):
@@ -141,4 +154,4 @@ if df is not None:
                     """, unsafe_allow_html=True)
 
 st.markdown("---")
-st.caption(f"Última actualización automática: {datetime.now().strftime('%H:%M')} hs")
+st.caption("Agenda del Museo del Hambre - Los eventos pasados se ocultan automáticamente.")
