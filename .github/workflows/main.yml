@@ -1,13 +1,11 @@
-name: Despertador del Museo
+name: Wake Up App
 on:
   schedule:
-    - cron: '0 * * * *' # Esto se ejecuta automáticamente cada hora
-  workflow_dispatch:   # Esto te permite probarlo a mano si querés
-
+    - cron: '*/30 * * * * 
+  workflow_dispatch:
 jobs:
-  ping_app:
+  ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Visitar la App
-        # REEMPLAZA EL LINK DE ABAJO POR TU LINK DE STREAMLIT REAL
-        run: curl -I https://calendario2026-museodelhambre.streamlit.app/
+      - name: Ping App
+        run: curl -I https://calendario2026-museodelhambre.streamlit.app
