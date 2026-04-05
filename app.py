@@ -13,7 +13,6 @@ st.set_page_config(
 # --- FUNCIONES DE FORMATEO ---
 
 def formatear_fecha_larga(fecha_str):
-    """Convierte fechas a formato '4 de abril de 2026'"""
     try:
         fecha_obj = pd.to_datetime(fecha_str, dayfirst=True)
         meses = {
@@ -26,10 +25,10 @@ def formatear_fecha_larga(fecha_str):
         return fecha_str
 
 def formatear_hora_corta(hora_str):
-    """Asegura formato HH:MM (ej: 10:00)"""
     try:
-        if ":" in str(hora_str):
-            partes = str(hora_str).split(":")
+        hora_str = str(hora_str).strip()
+        if ":" in hora_str:
+            partes = hora_str.split(":")
             hh = partes[0].zfill(2)
             mm = partes[1].zfill(2)
             return f"{hh}:{mm}"[:5]
@@ -52,7 +51,7 @@ st.markdown("""
         flex-direction: column;
         align-items: center;
         text-align: center;
-        min-height: 460px;
+        min-height: 480px;
         transition: transform 0.2s ease;
     }
     .event-card:hover {
@@ -69,69 +68,45 @@ st.markdown("""
         flex-direction: column;
         align-items: center;
     }
-    .date-text {
-        color: #4b2e2a;
-        font-weight: 800;
-        font-size: 19px;
-        display: block;
-        line-height: 1.2;
-    }
-    .time-text {
-        color: #6d4c41;
-        font-weight: 700;
-        font-size: 16px;
-        margin-top: 6px;
-        display: block;
-    }
-    .event-title {
-        color: #4b2e2a;
-        font-size: 24px;
-        font-weight: 700;
-        margin-bottom: 12px;
-        line-height: 1.2;
-    }
-    .location {
-        color: #8d6e63;
-        font-size: 16px;
-        font-weight: 500;
-        margin-bottom: 15px;
-        font-style: italic;
-    }
-    .description {
-        color: #5d4037;
-        font-size: 15px;
-        line-height: 1.7;
-    }
+    .date-text { color: #4b2e2a; font-weight: 800; font-size: 19px; line-height: 1.2; }
+    .time-text { color: #6d4c41; font-weight: 700; font-size: 16px; margin-top: 6px; }
+    .event-title { color: #4b2e2a; font-size: 24px; font-weight: 700; margin-bottom: 12px; line-height: 1.2; }
+    .location { color: #8d6e63; font-size: 16px; font-weight: 500; margin-bottom: 15px; font-style: italic; }
+    .description { color: #5d4037; font-size: 15px; line-height: 1.7; }
 </style>
 """, unsafe_allow_html=True)
 
-# 3. Carga de datos desde Link RAW de GitHub
-@st.cache_data(ttl=900)
+# 3. Carga de datos desde GitHub (Online)
+@st.cache_data(ttl=600)
 def load_data():
-    # Usando el nuevo repositorio Calendar_2026
-    url = "https://raw.githubusercontent.com/museodelhambre/Calendar_2026/main/propuestas.csv"
+    # URL del CSV Online
+    url = "https://raw.githubusercontent.com/museodelhambre/Calendar_2026/refs/heads/main/propuestas.csv"
     try:
-        df = pd.read_csv(url, encoding='utf-8-sig')
+        # Intentamos leer el CSV online (probando coma y punto y coma)
+        df = pd.read_csv(url, sep=',', encoding='utf-8-sig')
+        if len(df.columns) <= 1:
+            df = pd.read_csv(url, sep=';', encoding='utf-8-sig')
+            
         df.columns = df.columns.str.strip()
         mapping = {'Nombre del evento': 'Nombre', 'Descripción': 'Desc'}
         df = df.rename(columns={k: v for k, v in mapping.items() if k in df.columns})
+        
         for c in ['Fecha', 'Hora', 'Nombre', 'Desc', 'Lugar']:
             if c not in df.columns: df[c] = ""
             df[c] = df[c].fillna("").astype(str).str.strip()
         return df
-    except:
+    except Exception as e:
+        st.error(f"Error al conectar con el CSV online: {e}")
         return None
 
 df = load_data()
 
 if df is not None:
-    # Logo
     if os.path.exists("logo.png"):
         st.image("logo.png", width=140)
     
     st.title("📅 Agenda de actividades - Museo del Hambre 2026")
     
-    # Buscador único
     search = st.text_input("🔍 Buscar actividad...", placeholder="Escribe aquí el nombre del evento...")
 
     f_df = df.copy()
@@ -139,17 +114,15 @@ if df is not None:
         f_df = f_df[f_df['Nombre'].str.contains(search, case=False)]
 
     if f_df.empty:
-        st.info("No hay actividades programadas que coincidan.")
+        st.info("No hay actividades programadas.")
     else:
-        # Grid de 3 eventos por línea
+        # Cuadrícula de 3 columnas
         cols = st.columns(3)
-        
         for i, row in f_df.reset_index().iterrows():
-            fecha_larga = formatear_fecha_larga(row['Fecha'])
-            hora_limpia = formatear_hora_corta(row['Hora'])
-            
+            fecha_l = formatear_fecha_larga(row['Fecha'])
+            hora_l = formatear_hora_corta(row['Hora'])
             with cols[i % 3]:
-                card_html = f"""<div class="event-card"><div class="date-time-box"><span class="date-text">{fecha_larga}</span><span class="time-text">🕒 {hora_limpia} hs</span></div><div class="event-title">{row['Nombre']}</div><div class="location">📍 {row['Lugar']}</div><div class="description">{row['Desc']}</div></div>"""
+                card_html = f"""<div class="event-card"><div class="date-time-box"><span class="date-text">{fecha_l}</span><span class="time-text">🕒 {hora_l} hs</span></div><div class="event-title">{row['Nombre']}</div><div class="location">📍 {row['Lugar']}</div><div class="description">{row['Desc']}</div></div>"""
                 st.markdown(card_html, unsafe_allow_html=True)
 
 st.markdown("---")
