@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import os
-import textwrap
 from datetime import datetime
 
 # 1. Configuración de la página
@@ -29,12 +28,11 @@ def formatear_fecha_larga(fecha_str):
 def formatear_hora_corta(hora_str):
     """Asegura formato HH:MM (ej: 10:00)"""
     try:
-        # Intentamos convertir a objeto tiempo para extraer solo HH:MM
         if ":" in str(hora_str):
             partes = str(hora_str).split(":")
-            hh = partes[0].zfill(2) # Agrega cero a la izquierda si falta
+            hh = partes[0].zfill(2)
             mm = partes[1].zfill(2)
-            return f"{hh}:{mm}"[:5] # Corta a 5 caracteres exactos
+            return f"{hh}:{mm}"[:5]
         return hora_str
     except:
         return hora_str
@@ -42,8 +40,7 @@ def formatear_hora_corta(hora_str):
 # 2. Estilo CSS (Estética Cálida, Centrada y Marrón)
 st.markdown("""
 <style>
-    .main { background-color: #fdfcf0; } /* Fondo Crema */
-    
+    .main { background-color: #fdfcf0; }
     .event-card {
         background-color: #ffffff;
         padding: 30px;
@@ -53,8 +50,8 @@ st.markdown("""
         margin-bottom: 25px;
         display: flex;
         flex-direction: column;
-        align-items: center; /* Centrado horizontal */
-        text-align: center;   /* Texto centrado */
+        align-items: center;
+        text-align: center;
         min-height: 460px;
         transition: transform 0.2s ease;
     }
@@ -62,8 +59,6 @@ st.markdown("""
         transform: translateY(-5px);
         box-shadow: 0 10px 20px rgba(75, 46, 42, 0.1);
     }
-    
-    /* Cuadro de Fecha y Hora (Marrón Claro, 60% ancho) */
     .date-time-box {
         background-color: #f5ebd7;
         padding: 18px;
@@ -74,15 +69,13 @@ st.markdown("""
         flex-direction: column;
         align-items: center;
     }
-    
     .date-text {
-        color: #4b2e2a; /* Marrón oscuro */
+        color: #4b2e2a;
         font-weight: 800;
         font-size: 19px;
         display: block;
         line-height: 1.2;
     }
-    
     .time-text {
         color: #6d4c41;
         font-weight: 700;
@@ -90,7 +83,6 @@ st.markdown("""
         margin-top: 6px;
         display: block;
     }
-    
     .event-title {
         color: #4b2e2a;
         font-size: 24px;
@@ -98,7 +90,6 @@ st.markdown("""
         margin-bottom: 12px;
         line-height: 1.2;
     }
-    
     .location {
         color: #8d6e63;
         font-size: 16px;
@@ -106,7 +97,6 @@ st.markdown("""
         margin-bottom: 15px;
         font-style: italic;
     }
-    
     .description {
         color: #5d4037;
         font-size: 15px;
@@ -115,12 +105,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. Carga de datos
-@st.cache_data(ttl=60)
+# 3. Carga de datos desde Link RAW de GitHub
+@st.cache_data(ttl=900)
 def load_data():
-    url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQVnI-dbe62M3I0uv9mzw43pEZuwHAJMb-SpfFyXRu66uHZnNrRyy_xW-lRX4sooN28T357B5JLONxa/pub?gid=1828847868&single=true&output=csv"
+    # Usando el nuevo repositorio Calendar_2026
+    url = "https://raw.githubusercontent.com/museodelhambre/Calendar_2026/main/propuestas.csv"
     try:
-        df = pd.read_csv(url)
+        df = pd.read_csv(url, encoding='utf-8-sig')
         df.columns = df.columns.str.strip()
         mapping = {'Nombre del evento': 'Nombre', 'Descripción': 'Desc'}
         df = df.rename(columns={k: v for k, v in mapping.items() if k in df.columns})
@@ -128,7 +119,8 @@ def load_data():
             if c not in df.columns: df[c] = ""
             df[c] = df[c].fillna("").astype(str).str.strip()
         return df
-    except: return None
+    except:
+        return None
 
 df = load_data()
 
@@ -153,12 +145,10 @@ if df is not None:
         cols = st.columns(3)
         
         for i, row in f_df.reset_index().iterrows():
-            # Procesamos formatos de visualización
             fecha_larga = formatear_fecha_larga(row['Fecha'])
             hora_limpia = formatear_hora_corta(row['Hora'])
             
             with cols[i % 3]:
-                # HTML compacto para las tarjetas
                 card_html = f"""<div class="event-card"><div class="date-time-box"><span class="date-text">{fecha_larga}</span><span class="time-text">🕒 {hora_limpia} hs</span></div><div class="event-title">{row['Nombre']}</div><div class="location">📍 {row['Lugar']}</div><div class="description">{row['Desc']}</div></div>"""
                 st.markdown(card_html, unsafe_allow_html=True)
 
