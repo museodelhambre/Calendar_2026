@@ -76,27 +76,28 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. Carga de datos desde GitHub (Online)
-@st.cache_data(ttl=600)
+# 3. Carga de datos con Caché de 15 min (ttl=900)
+@st.cache_data(ttl=900)
 def load_data():
-    # URL del CSV Online
-    url = "https://raw.githubusercontent.com/museodelhambre/Calendar_2026/refs/heads/main/propuestas.csv"
+    # URL RAW de tu archivo en GitHub
+    url = "https://raw.githubusercontent.com/museodelhambre/Calendar_2026/main/propuestas.csv"
+    
     try:
-        # Intentamos leer el CSV online (probando coma y punto y coma)
-        df = pd.read_csv(url, sep=',', encoding='utf-8-sig')
-        if len(df.columns) <= 1:
-            df = pd.read_csv(url, sep=';', encoding='utf-8-sig')
-            
+        # Leemos el CSV desde la URL
+        df = pd.read_csv(url, encoding='utf-8-sig')
         df.columns = df.columns.str.strip()
+        
+        # Mapeo de columnas para la Agenda
         mapping = {'Nombre del evento': 'Nombre', 'Descripción': 'Desc'}
         df = df.rename(columns={k: v for k, v in mapping.items() if k in df.columns})
         
+        # Aseguramos columnas y limpiamos datos
         for c in ['Fecha', 'Hora', 'Nombre', 'Desc', 'Lugar']:
             if c not in df.columns: df[c] = ""
             df[c] = df[c].fillna("").astype(str).str.strip()
         return df
     except Exception as e:
-        st.error(f"Error al conectar con el CSV online: {e}")
+        st.error(f"Error al cargar la agenda online: {e}")
         return None
 
 df = load_data()
@@ -107,7 +108,7 @@ if df is not None:
     
     st.title("📅 Agenda de actividades - Museo del Hambre 2026")
     
-    search = st.text_input("🔍 Buscar actividad...", placeholder="Escribe aquí el nombre del evento...")
+    search = st.text_input("🔍 Buscar actividad...", placeholder="Ej: Taller, Charla, Cine...")
 
     f_df = df.copy()
     if search:
